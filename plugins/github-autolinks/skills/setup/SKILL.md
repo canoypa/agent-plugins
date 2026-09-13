@@ -2,11 +2,12 @@
 name: setup
 description: コミットメッセージが GitHub 上でメンションや issue 参照になるときに警告する git hook を、ユーザーの全リポジトリに設定（または解除）する。
 disable-model-invocation: true
+argument-hint: "[--uninstall]"
 ---
 
 # github-autolinks の設定
 
-`${CLAUDE_SKILL_DIR}/install.sh` を実行して、commit-msg hook を `~/.gitconfig` の `hook.github-autolinks` に登録する。解除を依頼されたときは `--uninstall` を付ける。どちらもユーザーのグローバルな git 設定を書き換えるが、このスキルを呼んだこと自体を実行の依頼として扱ってよい。
+`sh "${CLAUDE_SKILL_DIR}/install.sh" $ARGUMENTS` を実行する。引数が無ければ commit-msg hook を `~/.gitconfig` の `hook.github-autolinks` に登録し、`--uninstall` なら解除する。どちらもユーザーのグローバルな git 設定を書き換えるが、このスキルを呼んだこと自体を実行の依頼として扱ってよい。それ以外の引数ではスクリプトが使い方を表示して失敗するので、その出力を伝える。
 
 登録には config-based hooks（`hook.<name>.command`）に対応した git が必要である。スクリプトは登録後に `git hook list commit-msg` で確認し、見つからなければ失敗する。失敗したら出力をそのまま伝える。
 
