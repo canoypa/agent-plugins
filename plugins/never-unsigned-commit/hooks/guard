@@ -1,0 +1,35 @@
+#!/usr/bin/perl
+# PreToolUse hook: denies Bash commands that would skip commit signing or the pre-push check.
+use strict;
+use warnings;
+use utf8;
+binmode STDOUT, ":encoding(UTF-8)";
+use JSON::PP;
+
+my $input = decode_json(do { local $/; <STDIN> });
+my $command = $input->{tool_input}{command} // '';
+
+my @rules = (
+    [qr/--no-gpg-sign\b/, '--no-gpg-sign'],
+    [qr/commit\.gpgsign\s*[= ]\s*["']?(?:false|no|off|0)\b/i, 'turning off commit.gpgsign'],
+    [qr/--unset(?:-all)?\s+commit\.gpgsign\b/i, 'unsetting commit.gpgsign'],
+    [qr/\bgit\b[^;&|]*\bpush\b[^;&|]*--no-verify\b/, 'git push --no-verify (skips the pre-push check)'],
+    [qr/hook\.never-unsigned-commit\./, 'touching hook.never-unsigned-commit.*'],
+    [qr/\bhook\.pre-push\.enabled\b/, 'hook.pre-push.enabled (turns off every pre-push hook)'],
+    # Replacing the global config file also drops hook.never-unsigned-commit.
+    [qr/\bGIT_CONFIG_(?:GLOBAL|NOSYSTEM)=/, 'replacing the git config files'],
+);
+
+for my $rule (@rules) {
+    my ($pattern, $what) = @$rule;
+    next unless $command =~ $pattern;
+    print JSON::PP->new->encode({
+        hookSpecificOutput => {
+            hookEventName => 'PreToolUse',
+            permissionDecision => 'deny',
+            permissionDecisionReason => "never-unsigned-commit: denied $what. Every commit must be signed.",
+        },
+    });
+    exit 0;
+}
+exit 0;

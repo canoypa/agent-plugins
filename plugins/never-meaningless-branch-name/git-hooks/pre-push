@@ -1,0 +1,52 @@
+#!/bin/sh
+# Reads "<local ref> <local sha> <remote ref> <remote sha>" lines from stdin.
+
+section=never-meaningless-branch-name
+tab=$(printf '\t')
+
+rules=$(git config --get-regexp "^$section\\..*\\.pattern\$" | while read -r key pattern; do
+  name=${key#"$section".}
+  name=${name%.pattern}
+  reason=$(git config --get "$section.$name.reason" || echo "no reason is set in $section.$name.reason")
+  printf '%s\t%s\t%s\n' "$section.$name.pattern" "$pattern" "$reason"
+done)
+if [ -z "$rules" ]; then
+  rules="the built-in default$tab^claude/${tab}This is the name Claude Code gave by default; choose one on purpose."
+fi
+
+# grep exits 2 on a malformed pattern, which the match test below would read as "not forbidden".
+invalid=$(printf '%s\n' "$rules" | while IFS="$tab" read -r source pattern reason; do
+  printf '' | grep -Eq -e "$pattern" 2>/dev/null
+  [ $? -eq 2 ] && printf '  %s (%s)\n' "$pattern" "$source"
+done)
+if [ -n "$invalid" ]; then
+  cat >&2 <<EOF
+never-meaningless-branch-name: push rejected because these patterns are not valid extended regular expressions:
+$invalid
+EOF
+  exit 1
+fi
+
+rejected=$(
+  while read -r local_ref local_sha remote_ref remote_sha; do
+    # Deleting a badly named branch is what we want people to do.
+    case $local_sha in (*[!0]*) ;; (*) continue ;; esac
+    case $remote_ref in (refs/heads/*) ;; (*) continue ;; esac
+
+    branch=${remote_ref#refs/heads/}
+    printf '%s\n' "$rules" | while IFS="$tab" read -r source pattern reason; do
+      if printf '%s\n' "$branch" | grep -Eq -e "$pattern"; then
+        printf '  %s matches %s (%s)\n    %s\n' "$branch" "$pattern" "$source" "$reason"
+      fi
+    done
+  done
+)
+
+[ -z "$rejected" ] && exit 0
+
+cat >&2 <<EOF
+never-meaningless-branch-name: push rejected because these branch names match a forbidden pattern:
+$rejected
+Rename the branch and push again: git branch -m <new-name>
+EOF
+exit 1

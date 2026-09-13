@@ -1,0 +1,118 @@
+#!/usr/bin/perl
+# PreToolUse hook: asks the user before posting issue or pull request text that GitHub will autolink.
+use strict;
+use warnings;
+use utf8;
+binmode STDOUT, ":encoding(UTF-8)";
+use JSON::PP;
+
+my $input = decode_json(do { local $/; <STDIN> });
+my $tool = $input->{tool_name} // '';
+my $args = $input->{tool_input} // {};
+my $cwd = $input->{cwd} // '.';
+
+my ($mode, @texts);
+
+sub read_file {
+    require File::Spec;
+    open my $fh, '<', File::Spec->rel2abs(shift, $cwd) or return;
+    return do { local $/; <$fh> };
+}
+
+sub flag_values {
+    my ($words, @names) = @_;
+    my %wanted = map { $_ => 1 } @names;
+    my @values;
+    for my $i (0 .. $#$words) {
+        if ($words->[$i] =~ /^(--[\w-]+)=(.*)\z/s && $wanted{$1}) {
+            push @values, $2;
+        } elsif ($wanted{$words->[$i]} && $i < $#$words) {
+            push @values, $words->[$i + 1];
+        }
+    }
+    return @values;
+}
+
+if ($tool eq 'Bash') {
+    my $command = $args->{command} // '';
+    exit 0 unless $command =~ /\bgh\b/;
+
+    # Heredoc bodies are not shell words, and an apostrophe in one would unbalance the quoting below.
+    my @heredocs;
+    $command =~ s/<<-?[ \t]*(["']?)(\w+)\1([^\n]*)\n(.*?)\n[ \t]*\2(?=\n|\z)/push @heredocs, $4; $3/gse;
+
+    require Text::ParseWords;
+    my @words = Text::ParseWords::shellwords($command);
+    my ($gh) = grep { $words[$_] eq 'gh' } 0 .. $#words;
+    exit 0 unless defined $gh;
+    my ($end) = grep { $words[$_] =~ /^(?:&&|\|\||;|\|)$/ } $gh .. $#words;
+    @words = @words[$gh + 1 .. ($end // @words) - 1];
+    my ($sub, $action) = map { $_ // '' } @words[0, 1];
+
+    if ($sub eq 'api') {
+        $mode = (grep { m{^/?repos/[^/]+/[^/]+/pulls/\d+/merge$} } @words) ? '--commit'
+              : (grep { m{^/?repos/[^/]+/[^/]+/pulls(?:/\d+)?$} } @words) ? '--pull-request'
+              : '--markdown';
+        my $posted = qr/^(?:title|body|commit_title|commit_message|query)=/;
+        push @texts, map { s/$posted//r } grep { /$posted/ } flag_values(\@words, qw(-f --raw-field));
+        for (grep { /$posted/ } flag_values(\@words, qw(-F --field))) {
+            my $value = s/$posted//r;
+            push @texts, $value =~ s/^@// ? read_file($value) // () : $value;
+        }
+        push @texts, map { read_file($_) // () } grep { $_ ne '-' } flag_values(\@words, '--input');
+    } else {
+        $mode = $sub eq 'pr' && $action eq 'merge' ? '--commit'
+              : $sub eq 'pr' && $action =~ /^(?:create|edit)$/ ? '--pull-request'
+              : $sub eq 'pr' && $action =~ /^(?:comment|review)$/ ? '--markdown'
+              : $sub eq 'issue' && $action =~ /^(?:create|edit|comment)$/ ? '--markdown'
+              : exit 0;
+        push @texts, flag_values(\@words, qw(-t --title --subject -b --body));
+        push @texts, map { read_file($_) // () } grep { $_ ne '-' } flag_values(\@words, qw(-F --body-file));
+    }
+    push @texts, @heredocs;
+} elsif ($tool =~ /github/i) {
+    $mode = $tool =~ /merge/i ? '--commit'
+          : $tool =~ /pull_request/i ? '--pull-request'
+          : '--markdown';
+    push @texts, grep { defined && !ref } @$args{qw(title body comment commit_title commit_message)};
+} else {
+    exit 0;
+}
+exit 0 unless @texts;
+
+require File::Spec;
+require IPC::Open2;
+(my $checker = File::Spec->rel2abs($0)) =~ s{hooks/check-body$}{git-hooks/check-autolinks};
+my $pid = IPC::Open2::open2(my $out, my $in, $checker, $mode);
+binmode $_, ':encoding(UTF-8)' for $in, $out;
+print $in join("\n", @texts);
+close $in;
+my $found = do { local $/; <$out> } // '';
+waitpid $pid, 0;
+exit 0 if $found eq '';
+
+# "ask" would show the reason to the user only, and additionalContext arrives after the text is posted.
+# Denying once tells the agent beforehand; the identical call is let through on retry.
+require Digest::SHA;
+require File::Path;
+my $dir = File::Spec->catdir($ARGV[0] || File::Spec->tmpdir, 'github-autolinks-held');
+my $key = Digest::SHA::sha1_hex(join "\0", $input->{session_id} // '', $tool, JSON::PP->new->canonical->encode($args));
+my $marker = File::Spec->catfile($dir, $key);
+if (unlink $marker) {
+    exit 0;
+}
+File::Path::make_path($dir);
+if (open my $fh, '>', $marker) { close $fh }
+
+$found =~ s/^/  /gm;
+print JSON::PP->new->encode({
+    hookSpecificOutput => {
+        hookEventName => 'PreToolUse',
+        permissionDecision => 'deny',
+        permissionDecisionReason => "github-autolinks: held back once because this text will create links on GitHub:\n$found"
+            . "Mentions notify people, references leave a backlink on the target, and closing keywords close it on merge. "
+            . "\"(squash merge)\" marks links that appear only once the text becomes a commit message. "
+            . "If the links are intended, repeat the same call unchanged; otherwise fix the text.",
+    },
+});
+exit 0;

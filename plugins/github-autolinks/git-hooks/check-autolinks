@@ -1,0 +1,63 @@
+#!/usr/bin/perl
+# Usage: check-autolinks --commit|--markdown|--pull-request < text
+# Prints one finding per line and always exits 0.
+use strict;
+use warnings;
+
+my $mode = shift // '--commit';
+my $text = do { local $/; <STDIN> } // '';
+
+my $ref = qr{
+    (?<![\w&])\#\d+(?!\w)
+  | (?<![\w-])GH-\d+(?!\w)
+  | (?<![\w.-])[\w.-]+/[\w.-]+\#\d+(?!\w)
+  | https://github\.com/[\w.-]+/[\w.-]+/(?:issues|pull|discussions)/\d+
+}x;
+my $closing = qr{\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s+(?:$ref)}i;
+# A slash after the name (@types/node), a word character before it (an email address),
+# or "=" before it (gh api -F body=@file) is not a mention.
+my $mention = qr{(?<![\w`/.@=-])\@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?![\w/@-])};
+
+sub blank { my $s = shift; $s =~ s/[^\n]/ /g; $s }
+
+sub strip_markdown_code {
+    my $s = shift;
+    $s =~ s/^([ ]{0,3}(`{3,}|~{3,}).*?(?:^[ ]{0,3}\2[`~]*[ \t]*$|\z))/blank($1)/gmse;
+    $s =~ s/((`+)(?!`).*?(?<!`)\2(?!`))/blank($1)/gse;
+    return $s;
+}
+
+sub findings {
+    my ($s, $syntax, $closes) = @_;
+    my @found;
+    my $n = 0;
+    for my $line (split /\n/, $s, -1) {
+        $n++;
+        if ($closes) {
+            while ($line =~ /($closing)/g) { push @found, "L$n: closing: $1" }
+        }
+        while ($line =~ /($ref)/g) {
+            my ($m, $start) = ($1, $-[1]);
+            # In commit messages GitHub links a backticked #N but not a backticked URL.
+            next if $syntax eq 'commit' && $m =~ /^https:/ && $start > 0 && substr($line, $start - 1, 1) eq '`';
+            push @found, "L$n: reference: $m";
+        }
+        while ($line =~ /($mention)/g) { push @found, "L$n: mention: $1" }
+    }
+    return @found;
+}
+
+my @out;
+if ($mode eq '--commit') {
+    @out = findings($text, 'commit', 1);
+} elsif ($mode eq '--markdown') {
+    @out = findings(strip_markdown_code($text), 'markdown', 0);
+} elsif ($mode eq '--pull-request') {
+    my @md = findings(strip_markdown_code($text), 'markdown', 1);
+    my %seen = map { $_ => 1 } @md;
+    # A squash merge can turn the description into a commit message, where backticks no longer protect.
+    @out = (@md, map { "$_ (squash merge)" } grep { !$seen{$_} } findings($text, 'commit', 1));
+} else {
+    die "unknown mode: $mode\n";
+}
+print "$_\n" for @out;

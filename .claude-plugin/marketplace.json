@@ -9,6 +9,21 @@
       "name": "meta",
       "description": "Design, diagnose, and improve agent instruction files.",
       "source": "./plugins/meta"
+    },
+    {
+      "name": "never-unsigned-commit",
+      "description": "Never push an unsigned commit.",
+      "source": "./plugins/never-unsigned-commit"
+    },
+    {
+      "name": "never-meaningless-branch-name",
+      "description": "Never push a branch with a meaningless, auto-generated name.",
+      "source": "./plugins/never-meaningless-branch-name"
+    },
+    {
+      "name": "github-autolinks",
+      "description": "Warn about unintended mentions and issue references in commits, issues, and pull requests.",
+      "source": "./plugins/github-autolinks"
     }
   ]
 }
