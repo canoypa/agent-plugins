@@ -1,4 +1,4 @@
-# GITHUB AUTOLINKS
+# github-autolinks
 
 Warns when a commit message, issue, or pull request would create mentions or issue references on GitHub that you may not intend.
 
