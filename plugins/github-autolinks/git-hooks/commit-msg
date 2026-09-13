@@ -1,0 +1,19 @@
+#!/bin/sh
+# $1 is the message file. Warns only: some references are intentional.
+
+# git commit -v appends the staged diff below a scissors line; git drops it, so it is not message text.
+msg=$(sed '/^[^ ]* -\{24\} >8 -\{24\}$/,$d' "$1")
+# The file still holds git's comment template when an editor was used, but "#12 fix" given with -m is real text.
+if printf '%s\n' "$msg" | grep -q '^# '; then
+  msg=$(printf '%s\n' "$msg" | git stripspace --strip-comments)
+fi
+
+found=$(printf '%s\n' "$msg" | "$(dirname "$0")/check-autolinks" --commit | sed 's/^/  /')
+[ -z "$found" ] && exit 0
+
+cat >&2 <<EOF
+github-autolinks: this commit message will create links on GitHub:
+$found
+Backticks do not stop references or closing keywords in a commit message. If these are unintended, fix them with git commit --amend.
+EOF
+exit 0
