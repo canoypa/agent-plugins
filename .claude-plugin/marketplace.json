@@ -1,0 +1,8 @@
+{
+  "name": "canoypa",
+  "description": "A collection of agent plugins for myself.",
+  "owner": {
+    "name": "canoypa"
+  },
+  "plugins": []
+}
