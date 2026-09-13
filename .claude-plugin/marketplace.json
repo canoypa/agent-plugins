@@ -9,6 +9,11 @@
       "name": "meta",
       "description": "Design, diagnose, and improve agent instruction files.",
       "source": "./plugins/meta"
+    },
+    {
+      "name": "never-unsigned-commit",
+      "description": "Never push an unsigned commit.",
+      "source": "./plugins/never-unsigned-commit"
     }
   ]
 }

@@ -1,0 +1,32 @@
+#!/bin/sh
+# Reads "<local ref> <local sha> <remote ref> <remote sha>" lines from stdin.
+
+me=$(git config user.email || true)
+
+# Commits already on a remote, or committed by someone else, cannot be fixed by re-signing here.
+# %G? needs every signer's key (gpg.ssh.allowedSignersFile, a gpg keyring) and reports N without it,
+# so only the presence of a signature header is checked.
+unsigned=$(
+  while read -r local_ref local_sha remote_ref remote_sha; do
+    case $local_sha in (*[!0]*) git log --format='%H %ce' "$local_sha" --not --remotes ;; esac
+  done |
+    awk -v me="$me" '$2 == me && !seen[$1]++ { print $1 }' |
+    git cat-file --batch |
+    perl -e '
+      while (my $line = <STDIN>) {
+        my ($sha, undef, $size) = split " ", $line;
+        read STDIN, my $object, $size + 1;
+        my ($header, $message) = split /\n\n/, $object, 2;
+        next if $header =~ /^gpgsig/m;
+        printf "  %s %s\n", substr($sha, 0, 7), ($message // "") =~ /^(.*)/;
+      }'
+)
+
+[ -z "$unsigned" ] && exit 0
+
+cat >&2 <<EOF
+never-unsigned-commit: push rejected because these commits are not signed:
+$unsigned
+Every commit must be signed. To re-sign them: git rebase --exec 'git commit --amend --no-edit -S' <base>
+EOF
+exit 1
