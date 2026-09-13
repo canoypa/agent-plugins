@@ -1,0 +1,5 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "never-meaningless-branch-name",
+  "description": "Never push a branch with a meaningless, auto-generated name."
+}
