@@ -1,0 +1,18 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommitTypeAll(chore)",
+    ":configMigration"
+  ],
+  "enabledManagers": ["mise", "github-actions"],
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "description": "パッチ・SHAダイジェスト更新の自動マージ",
+      "matchUpdateTypes": ["patch", "digest"],
+      "minimumReleaseAge": "3 days",
+      "automerge": true
+    }
+  ]
+}
