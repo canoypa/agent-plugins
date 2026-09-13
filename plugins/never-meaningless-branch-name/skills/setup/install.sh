@@ -9,14 +9,21 @@ src=$(cd "$(dirname "$0")/../../git-hooks" && pwd)
 # The plugin cache path changes on every update, so ~/.gitconfig points at a copy instead.
 dest=${XDG_CONFIG_HOME:-$HOME/.config}/git/hooks/$name
 
-if [ "${1:-}" = --uninstall ]; then
-  git config --global --remove-section "hook.$name" 2>/dev/null || true
-  if [ -d "$dest" ]; then
-    if command -v trash >/dev/null 2>&1; then trash "$dest"; else rm -r "$dest"; fi
-  fi
-  echo "removed hook.$name and $dest"
-  exit 0
-fi
+case $#:${1:-} in
+  (0:) ;;
+  (1:--uninstall)
+    git config --global --remove-section "hook.$name" 2>/dev/null || true
+    if [ -d "$dest" ]; then
+      if command -v trash >/dev/null 2>&1; then trash "$dest"; else rm -r "$dest"; fi
+    fi
+    echo "removed hook.$name and $dest"
+    exit 0
+    ;;
+  (*)
+    echo "usage: install.sh [--uninstall]" >&2
+    exit 2
+    ;;
+esac
 
 mkdir -p "$dest"
 cp "$src"/* "$dest"/
