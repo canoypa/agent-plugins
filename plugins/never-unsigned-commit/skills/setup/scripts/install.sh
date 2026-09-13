@@ -5,7 +5,7 @@ set -eu
 name=never-unsigned-commit
 event=pre-push
 
-src=$(cd "$(dirname "$0")/../../git-hooks" && pwd)
+src=$(cd "$(dirname "$0")/../../../git-hooks" && pwd)
 # The plugin cache path changes on every update, so ~/.gitconfig points at a copy instead.
 dest=${XDG_CONFIG_HOME:-$HOME/.config}/git/hooks/$name
 
