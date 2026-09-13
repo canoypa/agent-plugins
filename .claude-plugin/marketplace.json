@@ -4,5 +4,11 @@
   "owner": {
     "name": "canoypa"
   },
-  "plugins": []
+  "plugins": [
+    {
+      "name": "meta",
+      "description": "Design, diagnose, and improve agent instruction files.",
+      "source": "./plugins/meta"
+    }
+  ]
 }
