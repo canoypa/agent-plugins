@@ -24,6 +24,11 @@
       "name": "github-autolinks",
       "description": "Warn about unintended mentions and issue references in commits, issues, and pull requests.",
       "source": "./plugins/github-autolinks"
+    },
+    {
+      "name": "handoff",
+      "description": "Leave the current session's state for whoever picks up the work next.",
+      "source": "./plugins/handoff"
     }
   ]
 }

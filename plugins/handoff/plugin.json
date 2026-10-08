@@ -1,0 +1,5 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "handoff",
+  "description": "Leave the current session's state for whoever picks up the work next."
+}
