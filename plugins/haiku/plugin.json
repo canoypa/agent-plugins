@@ -1,0 +1,13 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "haiku",
+  "description": "Claude Haiku writes a \"haiku\" for every review you submit.",
+  "userConfig": {
+    "review_commands": {
+      "type": "string",
+      "multiple": true,
+      "title": "Other review commands",
+      "description": "Commands that post a review and print its URL, such as a gh extension. Example: gh my-extension reviews create"
+    }
+  }
+}
