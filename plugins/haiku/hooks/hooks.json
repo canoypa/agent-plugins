@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(*review*)",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/append-haiku\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(*review*)",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/append-haiku\""
+          }
+        ]
+      }
+    ]
+  }
+}

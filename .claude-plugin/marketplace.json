@@ -29,6 +29,11 @@
       "name": "handoff",
       "description": "Leave the current session's state for whoever picks up the work next.",
       "source": "./plugins/handoff"
+    },
+    {
+      "name": "haiku",
+      "description": "Claude Haiku writes a \"haiku\" for every review you submit.",
+      "source": "./plugins/haiku"
     }
   ]
 }

@@ -1,0 +1,214 @@
+#!/usr/bin/perl
+# PreToolUse/PostToolUse hook: after a pull request review is posted with gh, appends a "## Haiku" section about the pull request to it.
+#
+# PreToolUse records the user's latest review on each pull request the command targets, and PostToolUse adds the
+# haiku only to a review that is new since then, so a failed or backgrounded command never edits an older review.
+use strict;
+use warnings;
+use utf8;
+use open qw(:std :encoding(UTF-8));
+use Encode qw(encode_utf8);
+use JSON::PP;
+use Cwd qw(abs_path);
+use File::Basename qw(dirname);
+use File::Spec;
+use File::Temp qw(tempfile);
+use POSIX qw(setsid _exit);
+use Text::ParseWords qw(shellwords);
+
+my $json = JSON::PP->new->canonical;
+my $input = $json->decode(do { local $/; <STDIN> });
+exit 0 unless ($input->{tool_name} // '') eq 'Bash';
+my $event = $input->{hook_event_name} // '';
+my $command = $input->{tool_input}{command} // '';
+exit 0 unless $command =~ /review/;
+my $haiku_sh = abs_path(dirname(__FILE__)) . '/haiku.sh';
+my $cwd = $input->{cwd} // '.';
+
+# Runs a command and returns its stdout, or '' if it fails.
+# Options: dir (working directory), env (extra environment), stdin (file to read).
+sub run {
+    my ($opts, @command) = @_;
+    my $pid = open(my $out, '-|') // return '';
+    if (!$pid) {
+        chdir $opts->{dir} or _exit(127) if defined $opts->{dir};
+        $ENV{$_} = $opts->{env}{$_} for keys %{ $opts->{env} // {} };
+        open STDIN, '<', $opts->{stdin} or _exit(127) if defined $opts->{stdin};
+        open STDERR, '>', File::Spec->devnull;
+        my @argv = map { encode_utf8($_) } @command;
+        exec { $argv[0] } @argv or _exit(127);
+    }
+    my $text = do { local $/; <$out> } // '';
+    close $out;
+    return $? == 0 ? $text =~ s/\s+\z//r : '';
+}
+
+sub flag_value {
+    my ($names, @args) = @_;
+    for my $i (0 .. $#args) {
+        return $1 if $args[$i] =~ /^(?:$names)=(.*)\z/s;
+        return $args[$i + 1] if $args[$i] =~ /^(?:$names)\z/ && $i < $#args;
+    }
+    return;
+}
+
+# Splits the command into the commands it runs, each with the directory and environment it runs in.
+sub invocations {
+    my $text = shift;
+    # Heredoc bodies are not shell words, and an apostrophe in one would unbalance the quoting below.
+    $text =~ s/<<-?[ \t]*(["']?)(\w+)\1([^\n]*)\n(.*?)\n[ \t]*\2(?=\n|\z)/$3/gs;
+    my @words = shellwords($text);
+    my ($dir, @invocations, @segment) = ($cwd);
+    for my $word (@words, ';') {
+        if ($word !~ /^(?:&&|\|\||;|\||&)$/) { push @segment, $word; next }
+        my %env;
+        $env{$1} = $2 while @segment && $segment[0] =~ /^([A-Za-z_]\w*)=(.*)\z/s && shift @segment;
+        if (@segment && $segment[0] eq 'cd' && defined $segment[1]) {
+            $dir = File::Spec->rel2abs($segment[1] =~ s/^~(?=\/|\z)/$ENV{HOME}/r, $dir);
+        } elsif (@segment) {
+            push @invocations, { dir => $dir, env => \%env, args => [@segment] };
+        }
+        @segment = ();
+    }
+    return @invocations;
+}
+
+sub starts_with {
+    my ($args, @prefix) = @_;
+    return @$args >= @prefix && !grep { $args->[$_] ne $prefix[$_] } 0 .. $#prefix;
+}
+
+my $review_url = qr{https?://([^/\s"]+)/([^/\s"]+/[^/\s"]+)/pull/(\d+)#pullrequestreview-(\d+)};
+
+# The pull request a review-posting invocation targets, as { host, repo, number }, or nothing if it posts no review.
+sub target {
+    my $inv = shift;
+    my ($program, @args) = @{ $inv->{args} };
+    return unless $program eq 'gh';
+    my %opts = (dir => $inv->{dir}, env => $inv->{env});
+    if (starts_with(\@args, 'api')) {
+        my $method = flag_value('-X|--method', @args);
+        my $writes = defined $method ? $method =~ /^(?:POST|PUT)\z/i
+                   : grep { /^(?:-f|-F|--raw-field|--field|--input)(?:=|\z)/ || /^-[fF]./ } @args;
+        my ($path) = grep { m{^/?repos/[^/]+/[^/]+/pulls/\d+/reviews(?:/\d+/events)?\z} } @args;
+        return unless $writes && $path;
+        my ($repo, $number) = $path =~ m{repos/([^/]+/[^/]+)/pulls/(\d+)};
+        my $host = flag_value('--hostname', @args) // $inv->{env}{GH_HOST} // $ENV{GH_HOST} // 'github.com';
+        # gh fills {owner} and {repo} from the current repository; ask it to do the same.
+        $repo = run(\%opts, 'gh', 'api', '--hostname', $host, "repos/$repo", '--jq', '.full_name') if $repo =~ /[{}]/;
+        return $repo ? { host => $host, repo => $repo, number => $number } : ();
+    }
+    if (starts_with(\@args, 'pr', 'review')) {
+        # Find the pull request argument by skipping the flags that take a value.
+        my @rest = @args[2 .. $#args];
+        my $selector;
+        while (defined(my $arg = shift @rest)) {
+            if ($arg =~ /^(?:-b|--body|-F|--body-file|-R|--repo)\z/) { shift @rest; next }
+            next if $arg =~ /^-/;
+            $selector = $arg;
+            last;
+        }
+        my @repo_flag = map { ('--repo', $_) } grep { defined } flag_value('-R|--repo', @args);
+        my $url = run(\%opts, 'gh', 'pr', 'view', grep({ defined } $selector), @repo_flag, '--json', 'url', '--jq', '.url');
+        my ($host, $repo, $number) = $url =~ m{^https?://([^/]+)/([^/]+/[^/]+)/pull/(\d+)};
+        return $repo ? { host => $host, repo => $repo, number => $number } : ();
+    }
+    return;
+}
+
+sub configured {
+    my $inv = shift;
+    my @commands = map { [split ' '] } grep { /\S/ } split /,/, $ENV{CLAUDE_PLUGIN_OPTION_REVIEW_COMMANDS} // '';
+    return grep { starts_with($inv->{args}, @$_) } @commands;
+}
+
+sub key { my $t = shift; "$t->{host} $t->{repo} $t->{number}" }
+
+my %login;
+sub login {
+    my $host = shift;
+    return $login{$host} //= run({}, 'gh', 'api', '--hostname', $host, 'user', '--jq', '.login');
+}
+
+# The id of the user's latest review on the pull request, or 0 if there is none.
+sub latest_review_id {
+    my $t = shift;
+    my $pages = $json->decode(run({}, 'gh', 'api', '--hostname', $t->{host}, '--paginate', '--slurp',
+        "repos/$t->{repo}/pulls/$t->{number}/reviews") || '[]');
+    my ($review) = reverse grep { ($_->{user}{login} // '') eq login($t->{host}) } map { @$_ } @$pages;
+    return $review ? $review->{id} : 0;
+}
+
+my $data_dir = $ENV{CLAUDE_PLUGIN_DATA} || $ENV{PLUGIN_DATA} || File::Spec->tmpdir;
+my $snapshot_file = File::Spec->catfile($data_dir, 'before-' . (($input->{tool_use_id} // '') =~ s/\W//gr) . '.json');
+
+my @invocations = invocations($command);
+
+if ($event eq 'PreToolUse') {
+    my %before = map { (key($_) => latest_review_id($_)) } map { target($_) } @invocations;
+    exit 0 unless %before;
+    mkdir $data_dir;
+    open my $fh, '>', $snapshot_file or exit 0;
+    print $fh $json->encode(\%before);
+    exit 0;
+}
+exit 0 unless $event eq 'PostToolUse';
+
+my %before = do {
+    my $text = -e $snapshot_file ? do { local (@ARGV, $/) = $snapshot_file; <> } : '{}';
+    unlink $snapshot_file;
+    %{ $json->decode($text) };
+};
+
+# Claude Code passes { stdout, stderr }; other clients pass the output text itself.
+my $response = $input->{tool_response};
+my $output = ref $response eq 'HASH' ? $response->{stdout} // '' : ref $response ? '' : $response // '';
+my %printed;
+$printed{"$1 $2 $3"} = $4 while $output =~ m{$review_url}g;
+
+# Reviews this command posted, as [target, review id or undef].
+my @posted;
+if (keys %printed == 1 && grep { configured($_) || (starts_with($_->{args}, 'gh', 'api') && target($_)) } @invocations) {
+    my ($key) = keys %printed;
+    my ($host, $repo, $number) = split / /, $key;
+    push @posted, [{ host => $host, repo => $repo, number => $number }, $printed{$key}];
+} else {
+    push @posted, map { [$_, undef] } grep { exists $before{key($_)} } map { target($_) } @invocations;
+}
+exit 0 unless @posted;
+
+# Composing takes a while; detach so the haiku still lands when the session ends first.
+defined(my $pid = fork) or exit 0;
+exit 0 if $pid;
+setsid();
+open STDIN, '<', File::Spec->devnull;
+open STDOUT, '>', File::Spec->devnull;
+open STDERR, '>', File::Spec->devnull;
+
+for (@posted) {
+    my ($t, $id) = @$_;
+    if (!defined $id) {
+        $id = latest_review_id($t);
+        next if !$id || $id == $before{key($t)};
+    }
+    my $api = sub { run({}, 'gh', 'api', '--hostname', $t->{host}, @_) };
+    my $review = $json->decode($api->("repos/$t->{repo}/pulls/$t->{number}/reviews/$id") || '{}');
+    next unless ($review->{user}{login} // '') eq login($t->{host});
+    my $body = $review->{body} // '';
+    next if $body =~ /^## Haiku\r?$/m;
+
+    my $pr = $json->decode($api->("repos/$t->{repo}/pulls/$t->{number}", '--jq', '{title, body}') || '{}');
+    my $diff = $api->("repos/$t->{repo}/pulls/$t->{number}", '-H', 'Accept: application/vnd.github.diff');
+    my $files = join "\n", $diff =~ m{^diff --git a/.+? b/(.+)$}mg;
+    my ($fh, $material) = tempfile(UNLINK => 1);
+    binmode $fh, ':encoding(UTF-8)';
+    print $fh "タイトル: ", $pr->{title} // '', "\n\n", $pr->{body} // '', "\n\n変更ファイル:\n$files\n\n差分（先頭）:\n",
+        substr($diff, 0, 8000), "\n";
+    close $fh;
+
+    my $poem = run({ stdin => $material }, $haiku_sh);
+    next unless length $poem;
+    $body =~ s/\s+\z//;
+    my $new_body = (length $body ? "$body\n\n" : '') . "## Haiku\n\n$poem\n";
+    $api->('-X', 'PUT', "repos/$t->{repo}/pulls/$t->{number}/reviews/$id", '-f', "body=$new_body");
+}
