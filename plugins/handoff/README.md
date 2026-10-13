@@ -25,6 +25,19 @@ Claude does not run this skill on its own. It runs only when you invoke it.
 /handoff:handoff --fork add length validation to the password field
 ```
 
+## Forking
+
+The new session starts with a prompt like this:
+
+```text
+forked from: Sign-up form fixes (<session id>)
+record: docs/worklog/password-length/session.md
+next: Add length validation to the password field.
+first: Send this session's title and ID to the session you were forked from.
+```
+
+From `forked from`, the new session knows the prompt came from that session rather than from you, and where to reply. Following `first`, it sends its own title and ID back, so the original session knows where the work went.
+
 ## Where records go
 
 The skill follows your instruction files (such as `CLAUDE.md` or `AGENTS.md`) for where to keep the record. If they say nothing, it asks you each time. To skip the question, add a line such as:
