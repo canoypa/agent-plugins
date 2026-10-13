@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# PreToolUse/PostToolUse hook: after a pull request review is posted with gh, appends a "## Haiku" section about the pull request to it.
+# PreToolUse/PostToolUse hook: after a pull request review is posted with gh, appends a haiku about the pull request to it as a footer.
 #
 # PreToolUse records the user's latest review on each pull request the command targets, and PostToolUse adds the
 # haiku only to a review that is new since then, so a failed or backgrounded command never edits an older review.
@@ -195,7 +195,7 @@ for (@posted) {
     my $review = $json->decode($api->("repos/$t->{repo}/pulls/$t->{number}/reviews/$id") || '{}');
     next unless ($review->{user}{login} // '') eq login($t->{host});
     my $body = $review->{body} // '';
-    next if $body =~ /^## Haiku\r?$/m;
+    next if $body =~ /<!-- haiku_footer_start -->/;
 
     my $pr = $json->decode($api->("repos/$t->{repo}/pulls/$t->{number}", '--jq', '{title, body}') || '{}');
     my $diff = $api->("repos/$t->{repo}/pulls/$t->{number}", '-H', 'Accept: application/vnd.github.diff');
@@ -208,7 +208,9 @@ for (@posted) {
 
     my $poem = run({ stdin => $material }, $haiku_sh);
     next unless length $poem;
+    my $line = join '', map { s/^\s+|\s+\z//gr } split /\n/, $poem;
     $body =~ s/\s+\z//;
-    my $new_body = (length $body ? "$body\n\n" : '') . "## Haiku\n\n$poem\n";
+    my $new_body = (length $body ? "$body\n\n" : '')
+        . "<!-- haiku_footer_start -->\n**Haiku**\n<sub>$line</sub>\n<!-- haiku_footer_end -->\n";
     $api->('-X', 'PUT', "repos/$t->{repo}/pulls/$t->{number}/reviews/$id", '-f', "body=$new_body");
 }
