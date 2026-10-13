@@ -9,11 +9,10 @@ When your agent posts a pull request review for you, a haiku about the change is
 ```markdown
 LGTM
 
-## Haiku
-
-🦀 整形と
-lintも型も
-鰯雲
+<!-- haiku_footer_start -->
+**Haiku**
+<sub>🦀 整形と Lint も型も鰯雲</sub>
+<!-- haiku_footer_end -->
 ```
 
 Claude Haiku writes the haiku from the pull request's title, description, and diff. It uses a seasonal word that matches today's date.
