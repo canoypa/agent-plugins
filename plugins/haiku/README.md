@@ -19,4 +19,4 @@ Claude Haiku writes the haiku from the pull request's title, description, and di
 
 After a shell command that mentions `review`, the plugin tells the agent how to add the haiku. If the command submitted a review, the agent runs `append-haiku` with the review's URL, so a review gets a haiku whichever command posted it: `gh pr review`, `gh api`, a GraphQL mutation, or a `gh` extension. Only a review you submitted in the last 10 minutes gets one.
 
-Requires Claude Code, the `claude` CLI, `gh`, and Perl.
+Requires the `claude` CLI, `gh`, and Perl.
