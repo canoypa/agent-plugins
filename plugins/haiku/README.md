@@ -17,16 +17,12 @@ LGTM
 
 Claude Haiku writes the haiku from the pull request's title, description, and diff. It uses a seasonal word that matches today's date.
 
-Reviews posted with `gh pr review`, or with `gh api` to a pull request's `reviews` endpoint, get a haiku.
+## How it works
 
-## Other review commands
+When your agent runs a shell command that mentions `review`, the plugin tells the agent how to add a haiku. If the command submitted a review, the agent runs `append-haiku` with the review's URL.
 
-If you post reviews with another command, such as a `gh` extension, add it to the plugin's `review_commands` option:
+Any command that submits a review works, such as `gh pr review`, `gh api`, or a `gh` extension.
 
-```text
-gh my-extension reviews create
-```
-
-The command must contain `review` and print the URL of the review it posted. This option is available only in Claude Code; in other clients that run plugin hooks, only `gh pr review` and `gh api` are covered.
+Only your own review gets a haiku, and only within 10 minutes after you submit it.
 
 Requires the `claude` CLI, `gh`, and Perl.

@@ -1,0 +1,24 @@
+#!/usr/bin/perl
+# PostToolUse hook: after a Bash command that may have submitted a pull request review, tells the agent how to add a haiku to it.
+use strict;
+use warnings;
+use JSON::PP;
+use Cwd qw(abs_path);
+use File::Basename qw(dirname);
+
+my $input = decode_json(do { local $/; <STDIN> });
+my $command = $input->{tool_input}{command} // '';
+my $append = abs_path(dirname(__FILE__)) . '/append-haiku';
+# append-haiku's own argument is a review URL, which the hook's if filter matches too.
+exit 0 if $command !~ /review/i || index($command, 'append-haiku') >= 0;
+
+print encode_json({
+    hookSpecificOutput => {
+        hookEventName => 'PostToolUse',
+        additionalContext => join(' ',
+            'The haiku plugin adds a haiku to each pull request review the user submits.',
+            "If the command above submitted a review, running `\"$append\" <review URL>` adds the haiku to it.",
+            'A review URL looks like https://github.com/OWNER/REPO/pull/1#pullrequestreview-2.',
+            'A command that only reads reviews, or leaves a review pending, needs nothing.'),
+    },
+});
