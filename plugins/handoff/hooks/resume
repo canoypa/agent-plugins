@@ -1,0 +1,8 @@
+#!/bin/sh
+# SessionStart hook: after /handoff:handoff --clear cleared this session, tells the agent where the record to continue from is.
+# The Claude desktop app restarts the session with source "startup" on a clear, so this runs on every source and relies on the marker alone.
+marker="${CLAUDE_PLUGIN_DATA}/clear/${CLAUDE_CODE_HOST_SESSION_ID}"
+[ -n "$CLAUDE_CODE_HOST_SESSION_ID" ] && [ -f "$marker" ] || exit 0
+record=$(cat "$marker")
+rm -f "$marker"
+echo "/handoff:handoff --clear cleared this session's conversation. The work continues from the record at ${record}."

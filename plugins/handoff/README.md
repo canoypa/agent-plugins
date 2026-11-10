@@ -13,30 +13,22 @@ Claude does not run this skill on its own. It runs only when you invoke it.
 ## Usage
 
 ```text
-/handoff:handoff [--fork] [what to work on next]
+/handoff:handoff [--clear | --sub <work to hand off>]
 ```
 
-- With no arguments, it writes the record and stops. Use this to set the work aside and resume it later.
-- Text after the command describes what to work on next, and the record is narrowed to it. If the text names only part of the current work, that part is split off into its own record, which states what it covers and where to leave the result. The original record notes the split, and the rest of the work continues in the current session.
-- `--fork` also prepares a new session that starts from the record. If a tool for starting sessions is available, such as `spawn_task` in the Claude desktop app, it is used. Otherwise, the skill prints a short prompt to paste into a new session.
+Every form writes the record first. What happens next depends on the option.
+
+- With no option, it stops. Use this to set the work aside and resume it later, for example when you leave a session open overnight or before `/compact`.
+- `--clear` clears the current session's conversation, so the same work continues with a clean context. When the session starts again, a hook tells it where the record is. Send any message, such as "continue", to go on.
+- `--sub` hands part of the current work to a new session. That part gets its own record, which states what it covers, and the original record notes the split. The new session starts from that record only, without this conversation, and runs under the current session, which keeps the rest of the work. This is a separate session, not a subagent.
 
 ```text
 /handoff:handoff
-/handoff:handoff --fork add length validation to the password field
+/handoff:handoff --clear
+/handoff:handoff --sub add length validation to the password field
 ```
 
-## Forking
-
-The new session starts with a prompt like this:
-
-```text
-forked from: Sign-up form fixes (<session id>)
-record: docs/worklog/password-length/session.md
-next: Add length validation to the password field.
-first: Send this session's title and ID to the session you were forked from.
-```
-
-From `forked from`, the new session knows the prompt came from that session rather than from you, and where to reply. Following `first`, it sends its own title and ID back, so the original session knows where the work went.
+`--clear` and `--sub` use the session tools of the Claude desktop app. Where those tools are not available, the skill writes the record and says that the option cannot run there.
 
 ## Where records go
 
@@ -49,4 +41,4 @@ Keep handoff records in `docs/worklog/<task>/session.md`.
 ## Limitations
 
 - The record is built from what the current session still has in context. Details dropped by an earlier compaction cannot be recovered.
-- A session started with `--fork` reads only the record, not the conversation.
+- After `--clear` or `--sub`, the next reader has only the record, not the conversation.
