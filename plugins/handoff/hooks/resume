@@ -1,8 +1,9 @@
 #!/bin/sh
-# SessionStart hook: after /handoff:handoff --clear cleared this session, tells the agent where the record to continue from is.
-# The Claude desktop app restarts the session with source "startup" on a clear, so this runs on every source and relies on the marker alone.
+# UserPromptSubmit hook: after /handoff:handoff --clear cleared this session, tells the agent where the record to continue from is.
+# It runs on the first prompt after the clear, not on SessionStart. Claude Code saves text injected on a prompt in the transcript
+# and replays it on resume, so the record's location survives a restart of the session's process.
 marker="${CLAUDE_PLUGIN_DATA}/clear/${CLAUDE_CODE_HOST_SESSION_ID}"
 [ -n "$CLAUDE_CODE_HOST_SESSION_ID" ] && [ -f "$marker" ] || exit 0
 record=$(cat "$marker")
 rm -f "$marker"
-echo "/handoff:handoff --clear cleared this session's conversation. The work continues from the record at ${record}."
+echo "/handoff:handoff --clear cleared this session's conversation. The handoff record is at ${record}. The record was written by this session's agent before the clear, not by the user. Read it first, and check what you rely on against the actual state (files, git). Then tell the user, in your own words, the goal, where things stand, what you will do next, and what was unclear or unverified. Start the work once the user confirms your understanding."
