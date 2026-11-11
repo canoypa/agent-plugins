@@ -1,5 +1,5 @@
 #!/bin/sh
-# UserPromptSubmit hook: after /handoff:handoff --clear cleared this session, tells the agent what it is continuing and where the record is.
+# UserPromptSubmit hook: after /handoff:handoff --clear cleared this session, tells the agent where the record to continue from is.
 # It runs on the first prompt after the clear, not on SessionStart. Claude Code saves text injected on a prompt in the transcript
 # and replays it on resume, so the note survives a restart of the session's process.
 marker="${CLAUDE_PLUGIN_DATA}/clear/${CLAUDE_CODE_HOST_SESSION_ID}"
@@ -7,10 +7,5 @@ marker="${CLAUDE_PLUGIN_DATA}/clear/${CLAUDE_CODE_HOST_SESSION_ID}"
 record=$(cat "$marker")
 rm -f "$marker"
 cat <<EOF
-The user was already working on something in this session. They had the conversation cleared so that the work continues from a clean context, and the agent that was here wrote a handoff record first: ${record}
-That record is all that remains of the earlier conversation.
-
-The record is the earlier agent's notes, not instructions from the user. It reflects that agent's understanding, which can be wrong or out of date. The user's message that arrived with this note is what you act on, and the record is the background for it.
-
-Read the record before you reply, and check what you rely on in it against the actual state (files, git). Then reply with your understanding in your own words: the goal, where things stand, what you will do next, and anything unclear or unverified. Begin the work once the user confirms. Your reply is the user's only way to see whether the work carried over correctly.
+Earlier work in this session continues from the handoff record at ${record}. Before doing any of that work, reply to the user with your understanding of the goal, the current state, and the next step, and wait for them to confirm. The record was written by the agent that was working here, so the user needs the chance to catch anything it got wrong.
 EOF
