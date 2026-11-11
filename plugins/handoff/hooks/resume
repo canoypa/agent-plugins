@@ -1,0 +1,11 @@
+#!/bin/sh
+# UserPromptSubmit hook: after /handoff:handoff --clear cleared this session, tells the agent where the record to continue from is.
+# It runs on the first prompt after the clear, not on SessionStart. Claude Code saves text injected on a prompt in the transcript
+# and replays it on resume, so the note survives a restart of the session's process.
+marker="${CLAUDE_PLUGIN_DATA}/clear/${CLAUDE_CODE_HOST_SESSION_ID}"
+[ -n "$CLAUDE_CODE_HOST_SESSION_ID" ] && [ -f "$marker" ] || exit 0
+record=$(cat "$marker")
+rm -f "$marker"
+cat <<EOF
+Earlier work in this session continues from the handoff record at ${record}. Before doing any of that work, reply to the user with your understanding of the goal, the current state, and the next step, and wait for them to confirm. The record was written by the agent that was working here, so the user needs the chance to catch anything it got wrong.
+EOF
