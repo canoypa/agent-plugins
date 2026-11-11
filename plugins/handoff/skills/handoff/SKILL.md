@@ -58,7 +58,7 @@ disable-model-invocation: true
 そのあと、`start_session` のように新しいセッションを起こすツールで、このセッションの会話を渡さずに新しいセッションを起こす（`start_session` なら `initiation: user_asked`、`context: fresh`）。新しいセッションが知るのは、起こすときに渡す文と記録だけになる。prompt には渡す作業を、background には次の文を、記録の絶対パスを入れて書く。
 
 ```text
-This work was handed off from another session. The handoff record is at <absolute path>. The record was written by that session's agent, not by the user. Read it first, and check what you rely on against the actual state (files, git). Then tell the user, in your own words, the goal, where things stand, what you will do next, and what was unclear or unverified. Start the work once the user confirms your understanding.
+The handoff record for this task is at <absolute path>. Before doing any of the work, reply to the user with your understanding of the goal, what done looks like, and the next step, and wait for them to confirm. The record was written by the agent of the session this task was split off from, so the user needs the chance to catch anything it got wrong.
 ```
 
 渡す作業に、未コミットの変更や今のブランチのコミットが要るなら、このセッションと同じフォルダで起こす（`start_session` なら `use_worktree: false`）。別の worktree で起こすと、未コミットの変更は渡らず、今のブランチのコミットも渡らないことがある。要らなければ、どこで起こすかはツールの既定に任せる。権限のモードは指定せず、このセッションのものを継がせる。

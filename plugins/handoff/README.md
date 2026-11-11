@@ -11,7 +11,7 @@ Hands work over to a session that has not seen the conversation, through a writt
 
 In both cases the reader has only the record, so the record is written to stand on its own. Your requests, decisions, and corrections stay close to your own words, and the agent's explanations are condensed. What was verified is kept apart from what was only inferred. Anything already written elsewhere, such as ADRs, notes, issues, or commits, is linked by path or URL instead of copied. Secrets are redacted. If a record for the same work already exists, it is updated instead of creating a new one.
 
-The session that receives the record treats it as notes from the previous agent, not as your instructions. It reads the record, checks what it relies on against the actual files and git state, and tells you its understanding of the goal, the current state, and the next step. It starts once you confirm.
+The session that receives the record is told that the previous agent wrote it, and is asked to tell you its understanding of the goal, the current state, and the next step before doing any of the work. It starts once you confirm.
 
 Claude does not run this skill on its own. It runs only when you invoke it.
 
