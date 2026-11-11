@@ -1,34 +1,48 @@
 # handoff
 
-Writes down where the current session stands, so that an agent without the conversation, such as you coming back later or a new session, can pick up the work.
+Hands work over to a session that has not seen the conversation, through a written record.
 
 ## What it does
 
-`/handoff:handoff` writes a record of the current state and the next step. If the work is waiting on a decision, the record says what needs deciding and which option is recommended. It also lists corrections you made during the session and the skills to use next, because the next reader cannot see the conversation.
+`/handoff:handoff` writes a record from what the current session knows, then hands the work over in one of two ways.
 
-The record keeps only what the next reader would otherwise get wrong or have to ask you again. Anything already written elsewhere, such as ADRs, notes, issues, or commits, is linked by path or URL instead of copied. Unverified points are marked as such, and secrets are redacted. If a record for the same work already exists, its state and next step are updated instead of creating a new record.
+- Followed by a piece of work, it delegates that piece to a new session. The current session keeps the rest.
+- With `--clear`, it clears the current session's conversation, and the same work continues from the record with a clean context.
+
+In both cases the reader has only the record, so the record is written to stand on its own. Your requests, decisions, and corrections stay close to your own words, and the agent's explanations are condensed. What was verified is kept apart from what was only inferred. Anything already written elsewhere, such as ADRs, notes, issues, or commits, is linked by path or URL instead of copied. Secrets are redacted. If a record for the same work already exists, it is updated instead of creating a new one.
+
+The session that receives the record treats it as notes from the previous agent, not as your instructions. It reads the record, checks what it relies on against the actual files and git state, and tells you its understanding of the goal, the current state, and the next step. It starts once you confirm.
 
 Claude does not run this skill on its own. It runs only when you invoke it.
 
 ## Usage
 
 ```text
-/handoff:handoff [--clear | --sub <work to hand off>]
+/handoff:handoff <work to hand off>
+/handoff:handoff --clear [what to work on next]
 ```
-
-Every form writes the record first. What happens next depends on the option.
-
-- With no option, it stops. Use this to set the work aside and resume it later, for example when you leave a session open overnight or before `/compact`.
-- `--clear` clears the current session's conversation, so the same work continues with a clean context. When the session starts again, a hook tells it where the record is. Send any message, such as "continue", to go on.
-- `--sub` hands part of the current work to a new session. That part gets its own record, which states what it covers, and the original record notes the split. The new session starts from that record only, without this conversation, and runs under the current session, which keeps the rest of the work. This is a separate session, not a subagent.
 
 ```text
-/handoff:handoff
+/handoff:handoff add length validation to the password field
 /handoff:handoff --clear
-/handoff:handoff --sub add length validation to the password field
+/handoff:handoff --clear start the implementation
 ```
 
-`--clear` and `--sub` use the session tools of the Claude desktop app. Where those tools are not available, the skill writes the record and says that the option cannot run there.
+### Delegating a piece of work
+
+The piece gets its own record, written as a brief: the purpose and how it serves the current goal, what done looks like, what to report back, what is in scope, the files involved, what is already decided, and what is unverified. The new session starts from that record only, without this conversation, and runs under the current session. This is a separate session, not a subagent.
+
+### `--clear`
+
+The record covers the whole of the current work: its state, the goal and what done looks like, what you asked for and corrected, what is left to do, likely forks and what to do at each, and the approaches that were ruled out and why. Text after `--clear` is recorded, in your words, as what to work on next.
+
+After the conversation is cleared, send any message, such as "continue". A hook tells the session where the record is when that first message arrives.
+
+Use `--clear` when the conversation itself is in the way, for example after a plan is settled and the build should start clean, or after repeated corrections have not fixed a misunderstanding. If the session has only grown long, `/compact` keeps the work going without writing a record.
+
+### Where the session tools are missing
+
+Both forms use the session tools of the Claude desktop app. Where those tools are not available, the skill writes the record and says that the handover cannot run there.
 
 ## Where records go
 
@@ -41,4 +55,5 @@ Keep handoff records in `docs/worklog/<task>/session.md`.
 ## Limitations
 
 - The record is built from what the current session still has in context. Details dropped by an earlier compaction cannot be recovered.
-- After `--clear` or `--sub`, the next reader has only the record, not the conversation.
+- The record is written by the session being handed over from. If that session has misunderstood the work, the record can carry the misunderstanding. Your own words in the record, and the receiving session's summary of its understanding, are there so that you can catch it.
+- After a handover, the next reader has only the record, not the conversation.
