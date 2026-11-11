@@ -34,6 +34,11 @@
       "name": "haiku",
       "description": "Claude Haiku writes a \"haiku\" for every review you submit.",
       "source": "./plugins/haiku"
+    },
+    {
+      "name": "chore",
+      "description": "A collection of small extras.",
+      "source": "./plugins/chore"
     }
   ]
 }
