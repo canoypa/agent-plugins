@@ -96,7 +96,7 @@ exit 0 if $found eq '';
 require Digest::SHA;
 require File::Path;
 my $dir = File::Spec->catdir($ARGV[0] || File::Spec->tmpdir, 'github-autolinks-held');
-my $key = Digest::SHA::sha1_hex(join "\0", $input->{session_id} // '', $tool, JSON::PP->new->canonical->encode($args));
+my $key = Digest::SHA::sha1_hex(join "\0", $input->{session_id} // '', $tool, JSON::PP->new->canonical->utf8->encode($args));
 my $marker = File::Spec->catfile($dir, $key);
 if (unlink $marker) {
     exit 0;
